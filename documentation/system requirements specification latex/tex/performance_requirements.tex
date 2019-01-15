@@ -1,0 +1,109 @@
+Performance is vital to our program because we will need a high frames per second count to accurately calculate the speed of a vehicle passing by. To make this easier, we will use YOLO for the object recognition. YOLO is great for this because it only passes over the image once to look for a vehicle, so it has very little load on the device itself. This would allow us to reach a higher FPS than if we used other object recognition algorithms. Another important performance requirement is that we will have to record at least 24 hours of video for the study. To help this, one idea we have mentioned is caching the video is memory and only saving it when a vehicle is detected moving through the frame.
+
+\subsection{Accurate speed calculation}
+\subsubsection{Description}
+We need to keep at least 30, but ideally 60 fps to make sure that our algorithm calculates the speed accurately.
+\subsubsection{Source}
+Jacob Devasier
+\subsubsection{Constraints}
+N/A
+\subsubsection{Standards}
+N/A
+\subsubsection{Priority}
+Moderate
+
+\subsection{Power}
+\subsubsection{Description}
+Traffic Pi will provide a stable source of power using the standard 120 V
+\subsubsection{Source}
+Seth Tisbi
+\subsubsection{Constraints}
+N/A
+\subsubsection{Standards}
+N/A
+\subsubsection{Priority}
+Critical
+
+\subsection{Database}
+\subsubsection{Description}
+Traffic Pi shall be able to store in a database the metadata collected from the 24 hour capture period
+\subsubsection{Source}
+Seth Tisbi
+\subsubsection{Constraints}
+The user's local computer may not have sufficient storage space to host the database.
+\subsubsection{Standards}
+N/A
+\subsubsection{Priority}
+Critical
+
+\subsection{IR Camera}
+\subsubsection{Description}
+The IR camera used shall be able to operate as specified in little to no light scenarios.
+\subsubsection{Source}
+Seth Tisbi
+\subsubsection{Constraints}
+N/A
+\subsubsection{Standards}
+The IR camera has to be hold to its own specifications.
+\subsubsection{Priority}
+Critical
+
+\subsection{3D Camera}
+\subsubsection{Description}
+The 3D camera used shall be able to operate as specified
+\subsubsection{Source}
+Seth Tisbi
+\subsubsection{Constraints}
+N/A
+\subsubsection{Standards}
+The 3D camera has to hold to its own specifications.
+\subsubsection{Priority}
+Critical
+
+\subsection{Pi Storage}
+\subsubsection{Description}
+The Raspberry Pi shall have sufficient storage space to be able to store all video captured in a 24 hour period.
+\subsubsection{Source}
+Seth Tisbi
+\subsubsection{Constraints}
+At the end of a 24 hour period, the system depends on the user to offload the data stored on the Pi to a local computer and thus free space.
+\subsubsection{Standards}
+N/A
+\subsubsection{Priority}
+Critical
+
+\subsection{Pre-processing}
+\subsubsection{Description}
+The application shall not commit to local memory video containing any cars.
+\subsubsection{Source}
+Seth Tisbi
+\subsubsection{Constraints}
+N/A
+\subsubsection{Standards}
+N/A
+\subsubsection{Priority}
+High
+
+\subsection{Post-processing}
+\subsubsection{Description}
+The application will store all processed data on the users local machine
+\subsubsection{Source}
+Miguel Fraire
+\subsubsection{Constraints}
+N/A
+\subsubsection{Standards}
+N/A
+\subsubsection{Priority}
+High
+
+\subsection{Local Storage}
+\subsubsection{Description}
+Traffic Pi shall commit to memory on the users computer the 24 hour video period.
+\subsubsection{Source}
+Seth Tisbi
+\subsubsection{Constraints}
+It is assumed and necessary that the user connect the Traffic Pi system to the local computer through a USB cable.
+\subsubsection{Standards}
+N/A
+\subsubsection{Priority}
+High
