@@ -29,31 +29,43 @@ class Preprocessor:
 
     def __init__(self, capture_video=True, threshold=0.1, fps=30,
                  past_seconds_saved=1, video_file=None, delay_frames=60):
-        self.capture_video = capture_video
-        self.threshold = threshold
-        self.fps = fps
-        self.past_seconds_saved = past_seconds_saved
+        
+        
+        self.capture_video = capture_video # True - get video from webcam, False - get from file
 
-        self.past_frames = Queue(maxsize=self.past_seconds_saved * self.fps)
-        self.saving_frames = False
+        # config stuff for saving segmented video files
+        self.config_save_frames = False # True - segment video from webcam or file
+        self.threshold = threshold # the threshold to begin saving (could be better with connected components)
+        self.fps = fps # frame rate to save at
+        self.past_seconds_saved = past_seconds_saved 
+        
+        # Data stuff
+        self._past_frames = Queue(maxsize=self.past_seconds_saved * self.fps)
+        self._saving_frames = False
+        self._total_pixels = 0
 
-        self.config_save_frames = False
-
+        # Sometimes delaying saving the file is helpful and it can reduce the number of files we have
         self.delay_saving = True
         self.delay_frames = delay_frames
-        self.remaining_frames = 0
-
-        self.total_pixels = 0
+        self._remaining_frames = 0
+        
 
         # Option to enable live video capture
         if self.capture_video:
-            self.cap = cv2.VideoCapture(0)
+            try:
+                self.cap = cv2.VideoCapture(0)
+            except:
+                print("No webcam or something")
+                quit()
         else:
+            if video_file == None:
+                print("Boy, add the video file")
+                quit()
             self.cap = cv2.VideoCapture(video_file)
         
         if self.config_save_frames:
             self.file_name = time.strftime('%d_%b_%Y %H_%M_%S.avi', time.localtime())
-            self.out = cv2.VideoWriter(self.file_name, cv2.VideoWriter_fourcc('M','J','P','G'), 10, (1920, 1080))
+            self.out = cv2.VideoWriter(self.file_name, cv2.VideoWriter_fourcc('M','J','P','G'), 10, (1920, 1080)) # should probably change this to 720 to save space
         
     def start_processing(self):
 
@@ -77,15 +89,15 @@ class Preprocessor:
             print("Process time:", finish_processing - start_time, "FPS:", 1 / (finish_processing - start_time))
 
             if self.config_save_frames:
-                if (cv2.countNonZero(new_frame) / self.total_pixels > self.threshold or (self.delay_saving and self.remaining_frames > 0)):
+                if (cv2.countNonZero(new_frame) / self._total_pixels > self.threshold or (self.delay_saving and self._remaining_frames > 0)):
                     self.save_frames()
 
-                    self.remaining_frames -= 1
+                    self._remaining_frames -= 1
                 else:
-                    self.saving_frames = False
+                    self._saving_frames = False
                     if self.out.isOpened():
                         self.out.release()
-                    self.past_frames.put(frame)
+                    self._past_frames.put(frame)
             
             cv2.imshow('frame', new_frame)
             
@@ -102,7 +114,7 @@ class Preprocessor:
 
         # Get total pixel count
         ret, frame = self.cap.read()
-        self.total_pixels = frame.size / 3
+        self._total_pixels = frame.size / 3
 
         # Ignore first 90 frames
         i = 1
@@ -113,7 +125,7 @@ class Preprocessor:
     def process_frame(self, frame):
         new_frame = cv2.resize(frame, (640, 480))
 
-        self.total_pixels = new_frame.size / 3
+        self._total_pixels = new_frame.size / 3
 
         new_frame = cv2.blur(new_frame, (2, 2))
         new_frame = self.bg_subtractor.apply(new_frame)
@@ -127,7 +139,7 @@ class Preprocessor:
     def process_frame_better_fps(self, frame):
         new_frame = cv2.resize(frame, (640, 480))
 
-        self.total_pixels = new_frame.size / 3
+        self._total_pixels = new_frame.size / 3
 
         new_frame = cv2.blur(new_frame, (5, 5))
         new_frame = self.bg_subtractor_fps.apply(new_frame)
@@ -143,19 +155,19 @@ class Preprocessor:
         # If we are still saving files, dont make a new one for each frame
         # just keep writing to the same file.
 
-        if self.saving_frames:
+        if self._saving_frames:
             self.out.write(self.current_frame)
         else:
             self.file_name = time.strftime('%d_%b_%Y %H_%M_%S.avi', time.localtime())
 
             self.out.open(self.file_name, cv2.VideoWriter_fourcc(*'MJPG'), 30, (1920, 1080))
 
-            self.saving_frames = True
+            self._saving_frames = True
 
-            self.remaining_frames = self.delay_frames
+            self._remaining_frames = self.delay_frames
 
             while True:
-                fr = self.past_frames.get()
+                fr = self._past_frames.get()
                 if fr is None:
                     break
                 self.out.write(fr)
@@ -166,7 +178,7 @@ class Preprocessor:
             self.out.release()
         cv2.destroyAllWindows()
 
-    def conncted_components(self, frame, threshold=1000, number=1):
+    def conncted_components(self, frame, threshold=1000):
         nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(frame, connectivity=4)
         sizes = stats[:, -1]
 
