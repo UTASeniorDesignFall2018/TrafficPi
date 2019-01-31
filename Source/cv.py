@@ -12,12 +12,14 @@ import numpy as np
 cap = cv2.VideoCapture(sys.argv[1])
 
 kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (6, 6))
+#closing = cv2.morphologyEx(img, cv2.MORPH_CLOSE, (2,2))
 
 total_pixels = 0
 
 #remove first 90 frames
 i = 0
- 
+last_frame = None
+
 while(i < 90):
     ret, frame = cap.read()
     if not total_pixels:
@@ -30,29 +32,48 @@ cnt = cv2.bgsegm.createBackgroundSubtractorCNT()
 gmg = cv2.bgsegm.createBackgroundSubtractorGMG()
 gsoc = cv2.bgsegm.createBackgroundSubtractorGSOC()
 
+
+ret, frame = cap.read()
+last_frame = frame
+
 while(True):
     ret, frame = cap.read()
+    last_frame = frame
 
     #frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     #frame = cv2.morphologyEx(frame, cv2.MORPH_OPEN, kernel)
-    #frame = cv2.blur(frame, (10,10))
+    # frame = cv2.blur(frame, (10,10))
 
     frame = cv2.resize(frame, (640, 480))
-    
-    frame_mog2 = mog2.apply(frame)
-    frame_mog = mog.apply(frame)
-    frame_cnt = cnt.apply(frame)
-    frame_gmg = gmg.apply(frame)
-    frame_gosc = gsoc.apply(frame)
 
-    cv2.imshow('frame_mog2', frame_mog2)
-    cv2.imshow('frame_mog', frame_mog)
-    cv2.imshow('frame_cnt', frame_cnt)
-    cv2.imshow('frame_gmg', frame_gmg)
-    cv2.imshow('frame_gosc', frame_gosc)
+    frame = cv2.blur(frame, (10,10))
+
+    # frame_mog2 = mog2.apply(frame)
+    #new_frame = gsoc.apply(frame)
+    # new_frame = cv2.medianBlur(frame, 3)
+    new_frame = gsoc.apply(frame)
+    # new_frame = cv2.medianBlur(new_frame, 3)
+
+    # new_frame = abs(frame - last_frame)
+    # new_frame = cv2.morphologyEx(new_frame, cv2.MORPH_OPEN, (10,10))
+    # new_frame = cv2.dilate(new_frame, (2,2), iterations=2)
+
+    cv2.imshow("frame", new_frame)
+    
+    # frame_cnt = cnt.apply(frame)
+    # frame_gmg = gmg.apply(frame)
+    # frame_gosc = gsoc.apply(frame)
+
+    # cv2.imshow('frame_mog2', frame_mog2)
+    # cv2.imshow('frame_mog', frame_mog)
+    # cv2.imshow('frame_cnt', frame_cnt)
+    # cv2.imshow('frame_gmg', frame_gmg)
+    # cv2.imshow('frame_gosc', frame_gosc)
 
     if cv2.waitKey(1) & 0xff == ord('q'):
         break
+
+    last_frame = frame
 
 cap.release()
 cv2.destroyAllWindows()

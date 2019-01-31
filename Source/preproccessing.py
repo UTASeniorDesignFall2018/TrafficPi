@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import time
 
-# TODO: save frames fix
+
 class Queue:
     def __init__(self, maxsize=0):
         self.size = 0
