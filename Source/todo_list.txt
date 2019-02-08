@@ -1,6 +1,7 @@
 Generalized Todo list:
 
-* Detect cars and bounding boxes around cars using YOLO
+* Detect cars and bounding boxes around cars. 
+    Take clean frames and write some code to get the boundaries and save them.
 
 * Use vehicle information to find distance to car so we can find the speed of the car
 

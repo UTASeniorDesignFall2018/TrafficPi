@@ -81,6 +81,8 @@ class Preprocessor:
 
             self.current_frame = frame
 
+            new_frame = frame
+
             #new_frame = self.process_frame(frame)
             new_frame = self.process_frame_better_fps(frame)
 
@@ -145,7 +147,8 @@ class Preprocessor:
         new_frame = self.bg_subtractor_fps.apply(new_frame)
 
         #new_frame = cv2.morphologyEx(new_frame, cv2.MORPH_OPEN, np.ones((5,5)))
-        new_frame = cv2.dilate(new_frame, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+        #new_frame = cv2.dilate(new_frame, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)))
+        new_frame = cv2.dilate(new_frame, np.ones((7,7)))
 
         new_frame = self.conncted_components(new_frame, threshold=1000)
 
