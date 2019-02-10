@@ -152,6 +152,8 @@ class Preprocessor:
 
         new_frame = self.conncted_components(new_frame, threshold=1000)
 
+        new_frame = self.fill_holes(new_frame)
+
         return new_frame
 
     def save_frames(self):
@@ -194,6 +196,16 @@ class Preprocessor:
                 out[output == l] = 255
 
         return out
+
+    def fill_holes(self, frame):
+        im_floodfill = frame.copy()
+        
+        h, w = frame.shape[:2]
+        mask = np.zeros((h+2, w+2), np.uint8)
+
+        cv2.floodFill(im_floodfill, mask, (0,0), 255)
+        im_floodfill_inv = cv2.bitwise_not(im_floodfill)
+        return frame | im_floodfill_inv
 
 pp = Preprocessor(capture_video=False, video_file=sys.argv[1], threshold=0.03)
 pp.start_processing()
