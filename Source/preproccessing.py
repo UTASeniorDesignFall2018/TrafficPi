@@ -110,7 +110,7 @@ class Preprocessor:
     def setup_processing(self):
 
         # Initialize variables used in processing
-        self.bg_subtractor = cv2.bgsegm.createBackgroundSubtractorGSOC()
+        #self.bg_subtractor = cv2.bgsegm.createBackgroundSubtractorGSOC()
         self.bg_subtractor_fps = cv2.bgsegm.createBackgroundSubtractorCNT()
         # self.morph_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (4, 4))
 
@@ -139,16 +139,18 @@ class Preprocessor:
         return new_frame
 
     def process_frame_better_fps(self, frame):
+    
         new_frame = cv2.resize(frame, (640, 480))
 
         self._total_pixels = new_frame.size / 3
-
+        
+        new_frame = cv2.cvtColor(new_frame, cv2.COLOR_BGR2GRAY)
+        
         new_frame = cv2.blur(new_frame, (5, 5))
+        
         new_frame = self.bg_subtractor_fps.apply(new_frame)
-
-        #new_frame = cv2.morphologyEx(new_frame, cv2.MORPH_OPEN, np.ones((5,5)))
-        #new_frame = cv2.dilate(new_frame, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)))
-        new_frame = cv2.dilate(new_frame, np.ones((7,7)))
+        
+        new_frame = cv2.dilate(new_frame, np.ones((5, 5)))
 
         new_frame = self.conncted_components(new_frame, threshold=1000)
 
