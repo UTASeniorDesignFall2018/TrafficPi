@@ -58,66 +58,6 @@ class Preprocessor:
                 print("No webcam or something")
                 quit()
         else:
-import cv2
-import sys
-import numpy as np
-import time
-
-
-class Queue:
-    def __init__(self, maxsize=0):
-        self.size = 0
-        self.items = []
-        self.maxsize = maxsize
-
-    def get(self):
-        if len(self.items) == 0:
-            return None
-        return self.items.pop()
-
-    def put(self, item):
-        if len(self.items) == self.maxsize:
-            self.items.pop()
-            self.items.insert(0, item)
-        else:
-            self.items.insert(0, item)
-        
-        self.size += 1
-
-
-class Preprocessor:
-
-    def __init__(self, capture_video=True, threshold=0.1, fps=30,
-                 past_seconds_saved=1, video_file=None, delay_frames=60):
-        
-        
-        self.capture_video = capture_video # True - get video from webcam, False - get from file
-
-        # config stuff for saving segmented video files
-        self.config_save_frames = False # True - segment video from webcam or file
-        self.threshold = threshold # the threshold to begin saving (could be better with connected components)
-        self.fps = fps # frame rate to save at
-        self.past_seconds_saved = past_seconds_saved 
-        
-        # Data stuff
-        self._past_frames = Queue(maxsize=self.past_seconds_saved * self.fps)
-        self._saving_frames = False
-        self._total_pixels = 0
-
-        # Sometimes delaying saving the file is helpful and it can reduce the number of files we have
-        self.delay_saving = True
-        self.delay_frames = delay_frames
-        self._remaining_frames = 0
-        
-
-        # Option to enable live video capture
-        if self.capture_video:
-            try:
-                self.cap = cv2.VideoCapture(0)
-            except:
-                print("No webcam or something")
-                quit()
-        else:
             if video_file == None:
                 print("Boy, add the video file")
                 quit()
