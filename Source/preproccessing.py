@@ -27,7 +27,7 @@ class Queue:
 
 class Preprocessor:
 
-    def __init__(self, capture_video=True, threshold=0.1, fps=30,
+    def __init__(self, capture_video=True, threshold=0, fps=30,
                  past_seconds_saved=1, video_file=None, delay_frames=60):
         
         
@@ -37,7 +37,7 @@ class Preprocessor:
         self.config_save_frames = False # True - segment video from webcam or file
         self.threshold = threshold # the threshold to begin saving (could be better with connected components)
         self.fps = fps # frame rate to save at
-        self.past_seconds_saved = past_seconds_saved 
+        self.past_seconds_saved = past_seconds_saved
         
         # Data stuff
         self._past_frames = Queue(maxsize=self.past_seconds_saved * self.fps)
@@ -88,19 +88,22 @@ class Preprocessor:
 
             finish_processing = time.time()
 
-            print("Process time:", finish_processing - start_time, "FPS:", 1 / (finish_processing - start_time))
+            print("Process time:", finish_processing - start_time, "FPS:", 1 / (0.000001 + finish_processing - start_time))
 
-            if self.config_save_frames:
-                if (cv2.countNonZero(new_frame) / self._total_pixels > self.threshold or (self.delay_saving and self._remaining_frames > 0)):
-                    self.save_frames()
+            # if self.config_save_frames:
+            #     if (cv2.countNonZero(new_frame) / self._total_pixels > self.threshold or (self.delay_saving and self._remaining_frames > 0)):
+            #         self.save_frames()
 
-                    self._remaining_frames -= 1
-                else:
-                    self._saving_frames = False
-                    if self.out.isOpened():
-                        self.out.release()
-                    self._past_frames.put(frame)
+            #         self._remaining_frames -= 1
+            #     else:
+            #         self._saving_frames = False
+            #         if self.out.isOpened():
+            #             self.out.release()
+            #         self._past_frames.put(frame)
             
+            # self.current_frame = new_frame
+            # self.save_frames()
+
             cv2.imshow('frame', new_frame)
             
             key = cv2.waitKey(1)
@@ -110,13 +113,16 @@ class Preprocessor:
     def setup_processing(self):
 
         # Initialize variables used in processing
-        # self.bg_subtractor = cv2.bgsegm.createBackgroundSubtractorGSOC()
+        #self.bg_subtractor = cv2.bgsegm.createBackgroundSubtractorGSOC()
         self.bg_subtractor_fps = cv2.bgsegm.createBackgroundSubtractorCNT()
         # self.morph_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (4, 4))
 
         # Get total pixel count
         ret, frame = self.cap.read()
         self._total_pixels = frame.size / 3
+
+        self.boxes = []
+        self.all_boxes = []
 
         # Ignore first 90 frames
         i = 1
@@ -129,7 +135,7 @@ class Preprocessor:
 
         self._total_pixels = new_frame.size / 3
 
-        new_frame = cv2.blur(new_frame, (2, 2))
+        new_frame = cv2.blur(new_frame, (3,3))
         new_frame = self.bg_subtractor.apply(new_frame)
 
         # new_frame = cv2.morphologyEx(new_frame, cv2.MORPH_OPEN, self.morph_kernel)
@@ -153,14 +159,18 @@ class Preprocessor:
 
         new_frame = self.conncted_components(new_frame, threshold=1000)
 
+        # for box in self.boxes:
+        #     x,y,w,h = box
+        #     new_frame = cv2.rectangle(new_frame, (x,y), (x+w,y+h), (255,255,255), 2)
+        
         return new_frame
 
-    def save_frames(self):
+    def save_frames(self, frame=None):
         # If we are still saving files, dont make a new one for each frame
         # just keep writing to the same file.
 
         if self._saving_frames:
-            self.out.write(self.current_frame)
+            self.out.write(frame)
         else:
             self.file_name = time.strftime('%d_%b_%Y %H_%M_%S.avi', time.localtime())
 
@@ -182,7 +192,7 @@ class Preprocessor:
             self.out.release()
         cv2.destroyAllWindows()
 
-    def conncted_components(self, frame, threshold=1000):
+    def conncted_components(self, frame, threshold=5000):
         nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(frame, connectivity=4)
         sizes = stats[:, -1]
 
@@ -190,9 +200,19 @@ class Preprocessor:
             return frame
             
         out = np.zeros(frame.shape, dtype='uint8')
+
+        # self.boxes = []
+
         for l in range(1, len(sizes)):
+            #print(sizes[l])
             if sizes[l] > threshold:
                 out[output == l] = 255
+
+                # box = np.zeros(frame.shape, dtype='uint8')
+                # box[output == l] = 255
+                # x,y,w,h = cv2.boundingRect(box)
+                # self.boxes.append((x,y,w,h))
+                # self.all_boxes.append((x,y,w,h))
 
         return out
 
@@ -208,3 +228,7 @@ class Preprocessor:
 
 pp = Preprocessor(capture_video=False, video_file=sys.argv[1], threshold=0.03)
 pp.start_processing()
+
+# with open("boxes.txt", "w") as f:
+#     for _,_,w,h in pp.all_boxes[:1000]:
+#         f.write(str(w) + "\t" + str(h) + "\t\n")
