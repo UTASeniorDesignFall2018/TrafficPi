@@ -2,6 +2,11 @@ import cv2
 import sys
 import numpy as np
 import time
+import math
+
+from statistics import median
+
+from car_info import RegressionModel
 
 
 class Queue:
@@ -25,11 +30,139 @@ class Queue:
         self.size += 1
 
 
-class Preprocessor:
+class SimilarTriangles:
+    def __init__(self):
+        # Hard-coded calibration, should be learned.
+        # [distance to, width]
+        # self.calibration = [23, 13.666667]
+        # self.calibration = [0.125, 0.25]
+        self.calibration = [94.66, 88]
+    
+    def get_road_length(self, distance):
+        return distance * self.calibration[1] / self.calibration[0]
 
+
+class Car:
+    def __init__(self, car, id=0):
+        self.id = id
+        self.car = car
+        self.velocity = 0
+        
+        self.first_seen = 0
+        self.last_seen = time.time()
+
+        self.mids = [((car[0] + car[1])/2, (car[2] + car[3])/2)]
+        self.next_pos = self.mids[0]
+
+        self.car_width = [car[1] - car[0]]
+        self.car_height = [car[3] - car[2]]
+
+        self.velocities = []
+
+    def update(self, car):
+        self.car = car
+        mid = ((car[0] + car[1])/2, (car[2] + car[3])/2)
+
+        self.velocity = (np.array(mid) - np.array(self.mids[-1])) / (self.last_seen - time.time())
+        self.velocities.append(self.velocity[0])
+
+        self.next_pos = mid + (self.last_seen - time.time()) * self.velocity
+
+        if self.first_seen == 0:
+            self.first_seen = time.time()
+
+        self.last_seen = time.time()
+        self.mids.append(mid)
+
+        self.car_width.append(car[1] - car[0])
+        self.car_height.append(car[3] - car[2])
+    
+    def get_next_pos(self):
+        x, y = self.next_pos
+        w = median(self.car_width)
+        h = median(self.car_height)
+        next_car = [x - w/2, x + w/2, y - h/2, y + h/2]
+        next_car = [round(n) for n in next_car]
+        return next_car
+
+    def get_pos(self):
+        x, y = self.mids[-1]
+        w = median(self.car_width[math.floor(len(self.car_width)/2):])
+        h = median(self.car_height)
+        next_car = [x - w/2, x + w/2, y - h/2, y + h/2]
+        next_car = [round(n) for n in next_car]
+        return next_car
+
+
+class CarTracker:
+    def __init__(self):
+        self.cars = []
+        self.rm = RegressionModel()
+        self.st = SimilarTriangles()
+    
+    def IOU(self, car1, car2):
+        #car1 ~ (left, right, top, bottom)
+        #car2 ~ same ^
+
+        area_c1 = (car1[1] - car1[0]) * (car1[3] - car1[2])
+        area_c2 = (car2[1] - car2[0]) * (car2[3] - car2[2])
+
+        inter_w = min(car1[3], car2[3]) - max(car1[2], car2[2])
+        inter_h = min(car1[1], car2[1]) - max(car1[0], car2[0])
+
+        if inter_w <= 0 or inter_h <= 0:
+            return 0
+
+        intersection = inter_w * inter_h
+        return intersection / (area_c1 + area_c2 - intersection)
+
+    def update_pos(self):
+        t = time.time()
+        for car in self.cars:
+            #print(car.mids, car.mids[-1])
+            car.next_pos = np.array(car.mids[-1]) + (car.last_seen - time.time()) * car.velocity
+
+            if car.next_pos[0] < 0 or car.next_pos[0] > 640:
+                self.cars.remove(car)
+                avg = np.mean(car.velocities)
+
+                if car.last_seen - car.first_seen < 0.25:
+                    continue
+
+                print("Car stats:")
+
+                dist_to_car = self.rm.get_distance(car.car_width[math.floor(len(car.car_width)/2)], car.car_height[math.floor(len(car.car_width)/2)])
+                road_len = self.st.get_road_length(dist_to_car)
+                print("Est. Distance:", int(dist_to_car))
+                print("Est. Road len:", int(road_len))
+                print("Time:", car.last_seen - car.first_seen)
+                print("Est. Avg. Speed:", float((road_len / (car.last_seen - car.first_seen)) / 1.467))
+
+            if t - car.last_seen > 1:
+                self.cars.remove(car)
+
+    def update_car(self, car1):
+        score, car = self.find_car(car1)
+
+        if car == None or score < 0.4:
+            self.cars.append(Car(car1))
+            return
+
+        car.update(car1)
+
+    def find_car(self, car1):
+        best_match = (-1, None)
+        for car in self.cars:
+            iou = self.IOU(car.get_next_pos(), car1)
+            if iou > best_match[0]:
+                best_match = (iou, car)
+        
+        return best_match
+
+
+class Preprocessor:
     def __init__(self, capture_video=True, threshold=0, fps=30,
                  past_seconds_saved=1, video_file=None, delay_frames=60):
-        
         
         self.capture_video = capture_video # True - get video from webcam, False - get from file
 
@@ -48,6 +181,11 @@ class Preprocessor:
         self.delay_saving = True
         self.delay_frames = delay_frames
         self._remaining_frames = 0
+
+        # Car tracking
+        self.car_tracker = CarTracker()
+        self.cars_in_frame = []
+        self.cars_in_previous = []
         
 
         # Option to enable live video capture
@@ -66,7 +204,19 @@ class Preprocessor:
         if self.config_save_frames:
             self.file_name = time.strftime('%d_%b_%Y %H_%M_%S.avi', time.localtime())
             self.out = cv2.VideoWriter(self.file_name, cv2.VideoWriter_fourcc('M','J','P','G'), 10, (1920, 1080)) # should probably change this to 720 to save space
-        
+    
+    def skip_frames(self, n):
+        for _ in range(n):
+            ret, frame = self.cap.read()
+
+            if not ret:
+                break
+            
+            key = cv2.waitKey(1)
+            if key & 0xff == ord('q'):
+                break
+
+
     def start_processing(self):
 
         self.setup_processing()
@@ -88,7 +238,7 @@ class Preprocessor:
 
             finish_processing = time.time()
 
-            print("Process time:", finish_processing - start_time, "FPS:", 1 / (0.000001 + finish_processing - start_time))
+            #print("Process time:", finish_processing - start_time, "FPS:", 1 / (0.000001 + finish_processing - start_time))
 
             # if self.config_save_frames:
             #     if (cv2.countNonZero(new_frame) / self._total_pixels > self.threshold or (self.delay_saving and self._remaining_frames > 0)):
@@ -106,7 +256,7 @@ class Preprocessor:
 
             cv2.imshow('frame', new_frame)
             
-            key = cv2.waitKey(1)
+            key = cv2.waitKey(int(33 - (finish_processing - start_time)))
             if key & 0xff == ord('q'):
                 break
 
@@ -125,17 +275,14 @@ class Preprocessor:
         self.all_boxes = []
 
         # Ignore first 90 frames
-        i = 1
-        while(i < 200):
-            i += 1
-            self.cap.read()
+        self.skip_frames(200)
 
     def process_frame(self, frame):
         new_frame = cv2.resize(frame, (640, 480))
 
         self._total_pixels = new_frame.size / 3
 
-        new_frame = cv2.blur(new_frame, (3,3))
+        new_frame = cv2.blur(new_frame, (5,5))
         new_frame = self.bg_subtractor.apply(new_frame)
 
         # new_frame = cv2.morphologyEx(new_frame, cv2.MORPH_OPEN, self.morph_kernel)
@@ -151,18 +298,32 @@ class Preprocessor:
         
         new_frame = cv2.cvtColor(new_frame, cv2.COLOR_BGR2GRAY)
         
-        new_frame = cv2.blur(new_frame, (5, 5))
+        new_frame = cv2.blur(new_frame, (3,3))
         
         new_frame = self.bg_subtractor_fps.apply(new_frame)
         
         new_frame = cv2.dilate(new_frame, np.ones((5, 5)))
 
-        new_frame = self.conncted_components(new_frame, threshold=1000)
+        new_frame = self.conncted_components(new_frame, threshold=3000)
 
-        # for box in self.boxes:
-        #     x,y,w,h = box
-        #     new_frame = cv2.rectangle(new_frame, (x,y), (x+w,y+h), (255,255,255), 2)
+        # for car in self.cars_in_frame:
+        #     new_frame = cv2.rectangle(new_frame, (car[0], car[2]), (car[1], car[3]), (255, 255, 255), 2)
+
+        # Update each car's position and add new ones
+        for car in self.cars_in_frame:
+            self.car_tracker.update_car(car)
         
+        
+        self.car_tracker.update_pos()
+
+        # Draw box for each car on screen, also draw a line to where their next pos should be
+        for car in self.car_tracker.cars:
+            pos = car.get_pos()
+            new_frame = cv2.rectangle(new_frame, (pos[0], pos[2]), (pos[1], pos[3]), (255, 255, 255), 2)
+            mp = car.mids[-1]
+            next_pos = car.next_pos
+            new_frame = cv2.line(new_frame, (int(mp[0]), int(mp[1])), (int(next_pos[0]), int(next_pos[1])), (30, 30, 30), 2)
+
         return new_frame
 
     def save_frames(self, frame=None):
@@ -192,7 +353,7 @@ class Preprocessor:
             self.out.release()
         cv2.destroyAllWindows()
 
-    def conncted_components(self, frame, threshold=5000):
+    def conncted_components(self, frame, threshold=3000):
         nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(frame, connectivity=4)
         sizes = stats[:, -1]
 
@@ -202,15 +363,21 @@ class Preprocessor:
         out = np.zeros(frame.shape, dtype='uint8')
 
         # self.boxes = []
+        self.cars_in_previous = self.cars_in_frame
+        self.cars_in_frame = []
 
         for l in range(1, len(sizes)):
-            #print(sizes[l])
+            
             if sizes[l] > threshold:
                 out[output == l] = 255
+                
+                box = np.zeros(frame.shape, dtype='uint8')
+                box[output == l] = 255
+                x,y,w,h = cv2.boundingRect(box)
 
-                # box = np.zeros(frame.shape, dtype='uint8')
-                # box[output == l] = 255
-                # x,y,w,h = cv2.boundingRect(box)
+                car = [x, x+w, y, y+h]
+                self.cars_in_frame.append(car)
+
                 # self.boxes.append((x,y,w,h))
                 # self.all_boxes.append((x,y,w,h))
 
@@ -226,9 +393,11 @@ class Preprocessor:
         im_floodfill_inv = cv2.bitwise_not(im_floodfill)
         return frame | im_floodfill_inv
 
+
 pp = Preprocessor(capture_video=False, video_file=sys.argv[1], threshold=0.03)
 pp.start_processing()
 
 # with open("boxes.txt", "w") as f:
 #     for _,_,w,h in pp.all_boxes[:1000]:
 #         f.write(str(w) + "\t" + str(h) + "\t\n")
+
