@@ -8,6 +8,8 @@ from statistics import median
 
 from car_info import RegressionModel
 
+# TODO: add lines that the midpoint must cross to track the time between lines
+
 
 class Queue:
     def __init__(self, maxsize=0):
@@ -107,8 +109,8 @@ class CarTracker:
         area_c1 = (car1[1] - car1[0]) * (car1[3] - car1[2])
         area_c2 = (car2[1] - car2[0]) * (car2[3] - car2[2])
 
-        inter_w = min(car1[3], car2[3]) - max(car1[2], car2[2])
-        inter_h = min(car1[1], car2[1]) - max(car1[0], car2[0])
+        inter_h = min(car1[3], car2[3]) - max(car1[2], car2[2])
+        inter_w = min(car1[1], car2[1]) - max(car1[0], car2[0])
 
         if inter_w <= 0 or inter_h <= 0:
             return 0
@@ -139,7 +141,8 @@ class CarTracker:
                 print("Est. Avg. Speed:", float((road_len / (car.last_seen - car.first_seen)) / 1.467))
 
             if t - car.last_seen > 1:
-                self.cars.remove(car)
+                if car in self.cars:
+                    self.cars.remove(car)
 
     def update_car(self, car1):
         score, car = self.find_car(car1)
@@ -165,6 +168,7 @@ class Preprocessor:
                  past_seconds_saved=1, video_file=None, delay_frames=60):
         
         self.capture_video = capture_video # True - get video from webcam, False - get from file
+        self.video_file = video_file
 
         # config stuff for saving segmented video files
         self.config_save_frames = False # True - segment video from webcam or file
@@ -203,7 +207,7 @@ class Preprocessor:
         
         if self.config_save_frames:
             self.file_name = time.strftime('%d_%b_%Y %H_%M_%S.avi', time.localtime())
-            self.out = cv2.VideoWriter(self.file_name, cv2.VideoWriter_fourcc('M','J','P','G'), 10, (1920, 1080)) # should probably change this to 720 to save space
+            self.out = cv2.VideoWriter(self.file_name, cv2.VideoWriter_fourcc('M','J','P','G'), 10, (640, 480)) # should probably change this to 720 to save space
     
     def skip_frames(self, n):
         for _ in range(n):
@@ -231,30 +235,35 @@ class Preprocessor:
 
             self.current_frame = frame
 
+            frame = cv2.resize(frame, (640, 480))
             new_frame = frame
 
             #new_frame = self.process_frame(frame)
-            new_frame = self.process_frame_better_fps(frame)
+            new_frame = self.process_frame_better_fps(new_frame)
 
             finish_processing = time.time()
 
-            #print("Process time:", finish_processing - start_time, "FPS:", 1 / (0.000001 + finish_processing - start_time))
+                #print("Process time:", finish_processing - start_time, "FPS:", 1 / (0.000001 + finish_processing - start_time))
 
-            # if self.config_save_frames:
-            #     if (cv2.countNonZero(new_frame) / self._total_pixels > self.threshold or (self.delay_saving and self._remaining_frames > 0)):
-            #         self.save_frames()
+                # if self.config_save_frames:
+                #     if (cv2.countNonZero(new_frame) / self._total_pixels > self.threshold or (self.delay_saving and self._remaining_frames > 0)):
+                #         self.save_frames()
 
-            #         self._remaining_frames -= 1
-            #     else:
-            #         self._saving_frames = False
-            #         if self.out.isOpened():
-            #             self.out.release()
-            #         self._past_frames.put(frame)
-            
-            # self.current_frame = new_frame
-            # self.save_frames()
+                #         self._remaining_frames -= 1
+                #     else:
+                #         self._saving_frames = False
+                #         if self.out.isOpened():
+                #             self.out.release()
+                #         self._past_frames.put(frame)
+                
+                # self.current_frame = new_frame
+                # self.save_frames()
 
-            cv2.imshow('frame', new_frame)
+                #cv2.imshow('frame', new_frame)
+
+            self.draw_boxes_around_cars(frame)
+
+            cv2.imshow('frame', frame)
             
             key = cv2.waitKey(int(33 - (finish_processing - start_time)))
             if key & 0xff == ord('q'):
@@ -275,10 +284,10 @@ class Preprocessor:
         self.all_boxes = []
 
         # Ignore first 90 frames
-        self.skip_frames(200)
+        #self.skip_frames(2000)
 
     def process_frame(self, frame):
-        new_frame = cv2.resize(frame, (640, 480))
+        #new_frame = cv2.resize(frame, (640, 480))
 
         self._total_pixels = new_frame.size / 3
 
@@ -309,22 +318,25 @@ class Preprocessor:
         # for car in self.cars_in_frame:
         #     new_frame = cv2.rectangle(new_frame, (car[0], car[2]), (car[1], car[3]), (255, 255, 255), 2)
 
+        return new_frame
+
+    def draw_boxes_around_cars(self, frame):
         # Update each car's position and add new ones
         for car in self.cars_in_frame:
             self.car_tracker.update_car(car)
-        
         
         self.car_tracker.update_pos()
 
         # Draw box for each car on screen, also draw a line to where their next pos should be
         for car in self.car_tracker.cars:
             pos = car.get_pos()
-            new_frame = cv2.rectangle(new_frame, (pos[0], pos[2]), (pos[1], pos[3]), (255, 255, 255), 2)
+            
+            frame = cv2.rectangle(frame, (pos[0], pos[2]), (pos[1], pos[3]), (255, 255, 255), 2)
             mp = car.mids[-1]
             next_pos = car.next_pos
-            new_frame = cv2.line(new_frame, (int(mp[0]), int(mp[1])), (int(next_pos[0]), int(next_pos[1])), (30, 30, 30), 2)
-
-        return new_frame
+            frame = cv2.line(frame, (int(mp[0]), int(mp[1])), (int(next_pos[0]), int(next_pos[1])), (30, 30, 30), 2)
+        
+        return frame
 
     def save_frames(self, frame=None):
         # If we are still saving files, dont make a new one for each frame

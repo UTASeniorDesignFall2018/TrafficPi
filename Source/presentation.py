@@ -137,10 +137,10 @@ class CarTracker:
 
                 dist_to_car = self.rm.get_distance(car.car_width[math.floor(len(car.car_width)/2)], car.car_height[math.floor(len(car.car_width)/2)])
                 road_len = self.st.get_road_length(dist_to_car)
-                print("Est. Distance:", int(dist_to_car))
-                print("Est. Road len:", int(road_len))
-                print("Time:", car.num_frames / 30)
-                print("Est. Avg. Speed:", float((road_len / (car.num_frames/30) / 1.467)))
+                print("Distance to car:", int(dist_to_car), "ft")
+                print("Road len:", int(road_len), "ft")
+                print("Time:", round(car.num_frames / 30, 2), "seconds")
+                print("Speed:", round((road_len / (car.num_frames/30) / 1.467)[0,0], 2), "mph")
 
             if t - car.last_seen > 1:
                 self.cars.remove(car)
@@ -220,7 +220,6 @@ class Preprocessor:
             if key & 0xff == ord('q'):
                 break
 
-
     def start_processing(self):
 
         self.setup_processing()
@@ -282,7 +281,8 @@ class Preprocessor:
         #self.skip_frames(200)
 
     def process_frame(self, frame):
-        new_frame = cv2.resize(frame, (640, 480))
+        old_frame = cv2.resize(frame, (640, 480))
+        new_frame = old_frame
 
         self._total_pixels = new_frame.size / 3
 
@@ -303,12 +303,12 @@ class Preprocessor:
         # Draw box for each car on screen, also draw a line to where their next pos should be
         for car in self.car_tracker.cars:
             pos = car.get_pos()
-            new_frame = cv2.rectangle(new_frame, (pos[0], pos[2]), (pos[1], pos[3]), (255, 255, 255), 2)
+            old_frame = cv2.rectangle(old_frame, (pos[0], pos[2]), (pos[1], pos[3]), (255, 255, 255), 2)
             mp = car.mids[-1]
             next_pos = car.next_pos
-            new_frame = cv2.line(new_frame, (int(mp[0]), int(mp[1])), (int(next_pos[0]), int(next_pos[1])), (30, 30, 30), 2)
+            old_frame = cv2.line(old_frame, (int(mp[0]), int(mp[1])), (int(next_pos[0]), int(next_pos[1])), (0, 255, 0), 4)
 
-        return new_frame
+        return old_frame
 
     def process_frame_better_fps(self, frame):
         new_frame = cv2.resize(frame, (640, 480))
@@ -414,8 +414,4 @@ class Preprocessor:
 
 pp = Preprocessor(capture_video=False, video_file=sys.argv[1], threshold=0.03)
 pp.start_processing()
-
-# with open("boxes.txt", "w") as f:
-#     for _,_,w,h in pp.all_boxes[:1000]:
-#         f.write(str(w) + "\t" + str(h) + "\t\n")
 
