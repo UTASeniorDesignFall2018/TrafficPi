@@ -412,6 +412,10 @@ class Preprocessor:
         return frame | im_floodfill_inv
 
 
-pp = Preprocessor(capture_video=False, video_file=sys.argv[1], threshold=0.03)
-pp.start_processing()
+
+
+while True:
+    print("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
+    pp = Preprocessor(capture_video=False, video_file=sys.argv[1], threshold=0.03)
+    pp.start_processing()
 
