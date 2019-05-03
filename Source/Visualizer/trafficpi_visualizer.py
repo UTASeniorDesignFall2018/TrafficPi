@@ -29,8 +29,8 @@ def main():
     fig, ax1 = plt.subplots()
     ax2 = ax1.twinx()
 
-    ax1.scatter(data[:, 0], data[:, 1], s=1, c='red', label='Speed of Vehicles')
-    ax2.plot(amount[:,0], amount[:,1], label='Number of Vehicles')
+    ax1.scatter(data[:, 0], data[:, 1], s=2, c='red', label='Speed of Vehicles')
+    ax2.plot(amount[:,0], amount[:,1], label='Number of Vehicles', linewidth=5)
 
     plt.xlim((data[0,0], data[0,0] + datetime.timedelta(days=1)))
     ax1.set_ylim((0, 60))
@@ -44,8 +44,8 @@ def main():
     ax1.xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))     #optional formatting 
 
     ax1.grid(linestyle='--')
-    plt.title("Traffic Pi Visualizer")
-    fig.legend()
+    plt.title("Traffic Pi Visualizer", fontsize=24)
+    fig.legend(prop={'size': 16})
     fig.autofmt_xdate()
     plt.show()
 
